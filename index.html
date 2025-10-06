@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Swaper Slider - 5 Images</title>
+  <style>
+    :root{
+      --slider-height: 90vh;
+      --dot-size: 10px;
+      --arrow-size: 44px;
+    }
+
+    *{box-sizing:border-box}
+    body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#fff;font-family:system-ui,Segoe UI,Roboto,Arial}
+
+    .slider{
+      width: 100%;
+      height: var(--slider-height);
+      position: relative;
+      overflow: hidden;
+      background: #222;
+      box-shadow: 0 10px 30px rgba(0,0,0,.6);
+      user-select: none;
+      touch-action: pan-y;
+    }
+
+    .track{
+      display:flex;
+      height:100%;
+      transition: transform 400ms cubic-bezier(.22,.9,.25,1);
+      will-change: transform;
+    }
+
+    .slide{
+      min-width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .slide img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      transform-origin:center;
+      transition: transform .6s ease;
+    }
+
+    .slide.active img{ transform: scale(1.03); }
+
+    /* arrows */
+    .arrow{
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      width: var(--arrow-size);
+      height: var(--arrow-size);
+      border-radius: 50%;
+      display:grid;
+      place-items:center;
+      background: rgba(0,0,0,.45);
+      cursor:pointer;
+      z-index:10;
+      transition: background .15s;
+      backdrop-filter: blur(4px);
+    }
+    .arrow:hover{ background: rgba(0,0,0,.65); }
+    .arrow.left{ left: 12px; }
+    .arrow.right{ right: 12px; }
+    .arrow svg{ width:18px;height:18px; color:#fff }
+
+    /* dots */
+    .dots{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      bottom:12px;
+      display:flex;
+      gap:8px;
+      z-index:10;
+    }
+    .dot{
+      width:var(--dot-size);
+      height:var(--dot-size);
+      border-radius:50%;
+      background: rgba(255,255,255,.25);
+      cursor:pointer;
+      transition: background .15s, transform .15s;
+    }
+    .dot:hover{ transform: scale(1.15); }
+    .dot.active{ background: #fff; }
+
+    /* caption (optional) */
+    .caption{
+      position:absolute;
+      left:20px;
+      bottom:60px;
+      z-index:10;
+      font-weight:600;
+      font-size: clamp(14px, 1.8vw, 20px);
+      text-shadow: 0 6px 18px rgba(0,0,0,.6);
+      background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,.15));
+      padding:8px 12px;
+      border-radius:8px;
+      backdrop-filter: blur(6px);
+    }
+
+    /* small screens */
+    @media (max-width:600px){
+      :root{ --slider-height: 48vh; --arrow-size:36px; }
+      .caption{ bottom:56px; left:12px; font-size:14px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="slider" id="slider">
+  <div class="track" id="track">
+    <div class="slide" data-caption="Image 1 - Mountains">
+      <img src="https://picsum.photos/id/1018/1600/900" alt="Slide 1">
+    </div>
+    <div class="slide" data-caption="Image 2 - Sea">
+      <img src="https://picsum.photos/id/1015/1600/900" alt="Slide 2">
+    </div>
+    <div class="slide" data-caption="Image 3 - Forest">
+      <img src="https://picsum.photos/id/1011/1600/900" alt="Slide 3">
+    </div>
+    <div class="slide" data-caption="Image 4 - City">
+      <img src="https://picsum.photos/id/1016/1600/900" alt="Slide 4">
+    </div>
+    <div class="slide" data-caption="Image 5 - Desert">
+      <img src="https://picsum.photos/id/1003/1600/900" alt="Slide 5">
+    </div>
+  </div>
+
+  <div class="arrow left" id="prev" aria-label="Previous slide">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/>
+    </svg>
+  </div>
+
+  <div class="arrow right" id="next" aria-label="Next slide">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/>
+    </svg>
+  </div>
+
+  <div class="caption" id="caption" style="display:none"></div>
+
+  <div class="dots" id="dots"></div>
+</div>
+
+<script>
+(function(){
+  const track = document.getElementById('track');
+  const slides = Array.from(track.children);
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const dotsContainer = document.getElementById('dots');
+  const slider = document.getElementById('slider');
+  const captionEl = document.getElementById('caption');
+
+  let index = 0;
+  let autoplayInterval = 3500;
+  let timer = null;
+  let isDragging = false;
+  let startX = 0;
+  let currentTranslate = 0;
+  let prevTranslate = 0;
+  let animationId = 0;
+
+  // create dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===0 ? ' active' : '');
+    d.dataset.index = i;
+    dotsContainer.appendChild(d);
+    d.addEventListener('click', () => goTo(i));
+  });
+
+  function update(){
+    const x = -index * slider.clientWidth;
+    track.style.transform = `translateX(${x}px)`;
+    slides.forEach((s, i) => s.classList.toggle('active', i === index));
+    [...dotsContainer.children].forEach((d, i) => d.classList.toggle('active', i === index));
+    const caption = slides[index].dataset.caption;
+    if(caption){
+      captionEl.style.display = 'block';
+      captionEl.textContent = caption;
+    } else captionEl.style.display = 'none';
+  }
+
+  function goTo(i){
+    index = (i + slides.length) % slides.length;
+    update();
+    resetAutoplay();
+  }
+
+  function next(){
+    goTo(index + 1);
+  }
+  function prev(){
+    goTo(index - 1);
+  }
+
+  nextBtn.addEventListener('click', next);
+  prevBtn.addEventListener('click', prev);
+
+  // keyboard
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') next();
+    if(e.key === 'ArrowLeft') prev();
+  });
+
+  // autoplay
+  function startAutoplay(){
+    stopAutoplay();
+    timer = setInterval(next, autoplayInterval);
+  }
+  function stopAutoplay(){
+    if(timer) { clearInterval(timer); timer = null; }
+  }
+  function resetAutoplay(){
+    stopAutoplay();
+    startAutoplay();
+  }
+  slider.addEventListener('mouseenter', stopAutoplay);
+  slider.addEventListener('mouseleave', startAutoplay);
+
+  // touch / drag support
+  const getPositionX = e => (e.type.includes('mouse') ? e.pageX : e.touches[0].clientX);
+
+  function touchStart(indexFromEvent, e){
+    isDragging = true;
+    startX = getPositionX(e);
+    prevTranslate = -index * slider.clientWidth;
+    track.style.transition = 'none';
+    cancelAnimationFrame(animationId);
+  }
+
+  function touchMove(e){
+    if(!isDragging) return;
+    const currentX = getPositionX(e);
+    const diff = currentX - startX;
+    currentTranslate = prevTranslate + diff;
+    track.style.transform = `translateX(${currentTranslate}px)`;
+  }
+
+  function touchEnd(){
+    if(!isDragging) return;
+    isDragging = false;
+    track.style.transition = '';
+    const movedBy = currentTranslate - prevTranslate;
+
+    const threshold = slider.clientWidth * 0.2;
+    if(movedBy < -threshold) index++;
+    else if(movedBy > threshold) index--;
+    goTo(index);
+  }
+
+  // pointer events for cross-device
+  slider.addEventListener('pointerdown', (e) => {
+    // don't start drag on arrow clicks
+    if(e.target.closest('.arrow') || e.target.closest('.dot')) return;
+    slider.setPointerCapture(e.pointerId);
+    touchStart(index, e);
+  });
+  slider.addEventListener('pointermove', touchMove);
+  slider.addEventListener('pointerup', (e) => {
+    touchEnd();
+    try { slider.releasePointerCapture(e.pointerId); } catch(_) {}
+  });
+  slider.addEventListener('pointercancel', touchEnd);
+  slider.addEventListener('pointerleave', touchEnd);
+
+  // make slider responsive on resize
+  window.addEventListener('resize', () => {
+    track.style.transition = 'none';
+    update();
+    setTimeout(()=> track.style.transition = '', 50);
+  });
+
+  // initial render & start autoplay
+  update();
+  startAutoplay();
+
+  // expose simple API to console (optional)
+  window.swaper = { next, prev, goTo: (i) => goTo(i) };
+
+})();
+</script>
+
+</body>
+</html>
